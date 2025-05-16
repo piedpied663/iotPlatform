@@ -44,6 +44,5 @@ namespace wifi_manager
     const char *get_ap_ip();
     const char *get_sta_ip();
 
-    static const StaNetwork default_sta_network = StaNetwork{"HaloMesh", "HaloMesh"};
 
 }

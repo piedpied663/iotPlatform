@@ -83,7 +83,6 @@ namespace wifi_manager
     Status get_status() { return g_status; }
     const char *get_ap_ip() { return s_ap_ip; }
     const char *get_sta_ip() { return s_sta_ip; }
-
     // Essaie le réseau STA suivant
     static void connect_next_sta()
     {
