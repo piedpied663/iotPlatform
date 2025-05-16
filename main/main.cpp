@@ -26,9 +26,6 @@ extern "C" void app_main()
     EventBits_t bits = xEventGroupWaitBits(eg, 0x01, pdFALSE, pdTRUE, portMAX_DELAY);
     ESP_LOGI("MAIN", "Boot OK, bits=%ld", bits);
 
-    wifi_manager::clear_sta_networks();
-    wifi_manager::add_sta_network("HaloMesh", "HaloMesh");
-    wifi_manager::add_sta_network("BV5900", "BV5900");
 
     sd_card::start_async_init();
     while (sd_card::g_sd_status == ESP_FAIL)
