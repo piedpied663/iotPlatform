@@ -42,7 +42,7 @@ namespace wifi_persistence
             return false;
         }
         size_t w = fwrite(jsonStr, 1, strlen(jsonStr), f);
-        fflush(f); 
+        fflush(f);
         fclose(f);
         cJSON_free(jsonStr);
         cJSON_Delete(root);
@@ -112,8 +112,17 @@ namespace wifi_persistence
             cJSON *j_pwd = cJSON_GetObjectItem(obj, "password");
             if (cJSON_IsString(j_ssid) && cJSON_IsString(j_pwd))
             {
-                nets.push_back({j_ssid->valuestring, j_pwd->valuestring});
+                std::string password = j_pwd->valuestring;
+                std::string ssid = j_ssid->valuestring;
+                if (ssid.length() > 32)
+                    continue;
+                nets.push_back({ssid, password});
             }
+        }
+        if ((int)nets.size() == 0)
+        {
+            ESP_LOGE(TAG, "Erreur: aucun réseau trouvé using defaults");
+            nets.push_back(wifi_manager::default_sta_network);
         }
         ESP_LOGI(TAG, "Config wifi chargée depuis SD (%s), %d réseaux", path, (int)nets.size());
         cJSON_Delete(root);
