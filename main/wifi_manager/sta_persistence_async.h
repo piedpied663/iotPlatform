@@ -4,7 +4,7 @@
 #include <vector>
 #include "wifi_manager.h"
 
-namespace wifi_persistence_async
+namespace sta_persistence_async
 {
     void start_persist_task();
     void request_save(const std::vector<StaNetwork>&);

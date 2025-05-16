@@ -2,9 +2,9 @@
 #include "esp_err.h"
 #include <vector>
 #include <string>
-#include "wifi_persistence.h"
 #include "wifi_api.h"
 #include "esp_netif_types.h"
+#include "wifi_types.h"
 
 namespace wifi_manager
 {

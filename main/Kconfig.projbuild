@@ -1,0 +1,32 @@
+menu "IotPlatForm"
+    menu "Access Point"
+        config IOT_AP_SSID
+            string "AP_SSID"
+            default "IotPlatform"
+
+        config IOT_AP_PSWD
+            string "AP_PSWD"
+            default "IotPlatform"
+
+        config IOT_AP_CHANNEL
+            int "AP_CHANNEL"
+            range 1 14
+            default 1
+            help
+                WiFi channel (network channel) of the AP to use.
+
+        config IOT_AP_MAX_CONNECTION
+            int "Maximal STA connections"
+            default 4
+            help
+                Max number of the STA connects to AP.
+        
+        config IOT_WIFI_SSID
+            string "IOT_WIFI_SSID"
+            default "HaloMesh"
+
+        config IOT_WIFI_PASSWD
+            string "IOT_WIFI_PASSWD"
+            default "HaloMesh"
+    endmenu
+endmenu

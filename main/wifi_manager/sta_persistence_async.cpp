@@ -1,10 +1,10 @@
-#include "wifi_persistence_async.h"
-#include "wifi_persistence.h"
+#include "sta_persistence_async.h"
+#include "sta_persistence.h"
 #include "esp_log.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-namespace wifi_persistence_async
+namespace sta_persistence_async
 {
 
     static QueueHandle_t persist_queue = nullptr;
@@ -22,7 +22,7 @@ namespace wifi_persistence_async
                 dirty = true;
                 persisted = false;
                 // Ecrit sur SD (synchrone, mais hors contexte REST !)
-                wifi_persistence::save(nets);
+                sta_persistence::save(nets);
                 dirty = false;
                 persisted = true;
                 ESP_LOGI(TAG, "Persistance SD async effectuée !");
