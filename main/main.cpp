@@ -6,6 +6,8 @@
 #include "wifi_manager.h"
 #include "sta_persistence.h"
 #include "sta_persistence_async.h"
+#include "ap_persistence.h"
+#include "ap_persistence_async.h"
 #include "esp_log.h"
 #include "macro.h"
 
@@ -28,21 +30,34 @@ extern "C" void app_main()
     EventBits_t bits = xEventGroupWaitBits(eg, 0x01, pdFALSE, pdTRUE, portMAX_DELAY);
     ESP_LOGI("MAIN", "Boot OK, bits=%ld", bits);
 
-
     sd_card::start_async_init();
     while (sd_card::g_sd_status == ESP_FAIL)
     {
         // Attend (ou tu peux yield, logger, etc.)
         vTaskDelay(pdMS_TO_TICKS(50));
     }
+    net_ap_config_t ap_cfg;
+    net_credential_t ap_net;
 
     if (sd_card::g_sd_status == ESP_OK)
     {
         ESP_LOGI("MAIN", "SD ready!");
         vTaskDelay(pdMS_TO_TICKS(50));
 
-        std::vector<StaNetwork> nets;
-        sta_persistence_async::start_persist_task();
+        if (ap_persistence::load(ap_cfg))
+        {
+            ESP_LOGI("MAIN", "AP config chargée depuis SD");
+        }
+        else
+        {
+            ESP_LOGW("MAIN", "Pas de config AP SD, fallback par défaut");
+            ap_cfg.ap_creds.ssid = CONFIG_IOT_AP_SSID;
+            ap_cfg.ap_creds.password = CONFIG_IOT_AP_PSWD;
+            ap_cfg.ap_channel = CONFIG_IOT_AP_CHANNEL;
+        }
+
+        std::vector<net_credential_t> nets;
+        // sta_persistence_async::start_persist_task();
 
         if (sta_persistence::load(nets))
         {
@@ -54,12 +69,16 @@ extern "C" void app_main()
         else
         {
             ESP_LOGW("MAIN", "Pas de config wifi SD, fallback réseaux par défaut");
-            wifi_manager::add_sta_network(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWD);              
+            wifi_manager::add_sta_network(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWD);
         }
     }
     else
     {
         ESP_LOGE("MAIN", "SD init failed!");
+
+        ap_cfg.ap_creds.ssid = CONFIG_IOT_AP_SSID;
+        ap_cfg.ap_creds.password = CONFIG_IOT_AP_PSWD;
+        ap_cfg.ap_channel = CONFIG_IOT_AP_CHANNEL;
     }
 
     wifi_manager::start_apsta_async([](wifi_manager::Status st)
@@ -75,7 +94,7 @@ extern "C" void app_main()
             printf("[WIFI] All STA failed, AP only mode\n");
             break;
         default: break;
-        } });
+        } }, ap_cfg);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
     httpd_handle_t server = NULL;

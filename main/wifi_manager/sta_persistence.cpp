@@ -15,7 +15,7 @@ namespace sta_persistence
     static constexpr const char *JSON_KEY_SSID = "ssid";
     static constexpr const char *JSON_KEY_PASSWORD = "password";
 
-    bool save(const std::vector<StaNetwork> &nets, const char *path)
+    bool save(const std::vector<net_credential_t> &nets, const char *path)
     {
         // 1) Sérialisation via to_json()
         std::string json = to_json(nets);
@@ -55,17 +55,17 @@ namespace sta_persistence
         return true;
     }
 
-    bool load(std::vector<StaNetwork> &nets)
+    bool load(std::vector<net_credential_t> &nets)
     {
         return load(nets, "/sdcard/wifi.txt");
     }
 
-    bool save(std::vector<StaNetwork, std::allocator<StaNetwork>> const &nets)
+    bool save(std::vector<net_credential_t, std::allocator<net_credential_t>> const &nets)
     {
         return save(nets, "/sdcard/wifi.txt");
     }
 
-    bool load(std::vector<StaNetwork> &nets, const char *path)
+    bool load(std::vector<net_credential_t> &nets, const char *path)
     {
 
         // 1) Lecture intégrale du fichier
@@ -112,7 +112,7 @@ namespace sta_persistence
         return true;
     }
 
-    std::string to_json(const std::vector<StaNetwork> &nets)
+    std::string to_json(const std::vector<net_credential_t> &nets)
     {
         cJSON *root = cJSON_CreateObject();
         cJSON *arr = cJSON_AddArrayToObject(root, JSON_KEY_STA);
@@ -135,7 +135,7 @@ namespace sta_persistence
         return out;
     }
 
-    bool from_json(const char *json, std::vector<StaNetwork> &nets)
+    bool from_json(const char *json, std::vector<net_credential_t> &nets)
     {
         cJSON *root = cJSON_Parse(json);
         if (!root)
@@ -162,7 +162,7 @@ namespace sta_persistence
                 const std::string ssid = j_ssid->valuestring;
                 const std::string pwd = j_pwd->valuestring;
                 if (!ssid.empty() && ssid.size() <= 32)
-                    nets.emplace_back(StaNetwork{ssid, pwd});
+                    nets.emplace_back(net_credential_t{ssid, pwd});
             }
         }
         cJSON_Delete(root);

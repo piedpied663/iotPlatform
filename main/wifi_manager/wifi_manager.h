@@ -9,6 +9,8 @@
 namespace wifi_manager
 {
 
+    
+
     enum class Status
     {
         INIT,
@@ -27,15 +29,15 @@ namespace wifi_manager
     // Ajoute un réseau STA à la liste (avant start)
     bool add_sta_network(const std::string &ssid, const std::string &password);
     void remove_sta_network(const std::string &ssid);
-    const std::vector<StaNetwork> &get_sta_list();
-    std::vector<StaNetwork> &get_sta_list_mutable();
+    const std::vector<net_credential_t> &get_sta_list();
+    std::vector<net_credential_t> &get_sta_list_mutable();
 
     // Efface tous les réseaux STA
     void clear_sta_networks();
     void cleanup_netifs();
 
     // Lance tout le wifi (APSTA, async)
-    void start_apsta_async(StatusCallback cb = nullptr);
+    void start_apsta_async(StatusCallback cb = nullptr, net_ap_config_t ap_config = {});
 
     // Obtenir l’état courant
     Status get_status();
@@ -43,6 +45,5 @@ namespace wifi_manager
     // Infos IP
     const char *get_ap_ip();
     const char *get_sta_ip();
-
 
 }

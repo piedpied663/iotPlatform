@@ -5,17 +5,6 @@
 #include <string>
 namespace wifi_api
 {
-
-    static const char *TAG = "WifiAPI";
-    esp_err_t wifi_sta_persisted_handler(httpd_req_t *req)
-    {
-        bool status = sta_persistence_async::is_persisted();
-        std::string json = std::string("{\"persisted\":") + (status ? "true" : "false") + "}";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, json.c_str(), json.size());
-        return ESP_OK;
-    }
-
     // GET /api/wifi_sta
     esp_err_t wifi_sta_get_handler(httpd_req_t *req)
     {
@@ -39,7 +28,7 @@ namespace wifi_api
         }
 
         // 2) Parser en liste
-        std::vector<StaNetwork> new_nets;
+        std::vector<net_credential_t> new_nets;
         if (!sta_persistence::from_json(body.c_str(), new_nets))
         {
             httpd_resp_send_500(req);
@@ -75,6 +64,10 @@ namespace wifi_api
         return ESP_FAIL;
     }
 
+    esp_err_t wifi_ap_get_handler(httpd_req_t *req) { return httpd_resp_send_500(req); }
+    esp_err_t wifi_ap_post_handler(httpd_req_t *req) { return httpd_resp_send_500(req); }
+    esp_err_t wifi_ap_delete_handler(httpd_req_t *req) { return httpd_resp_send_500(req); }
+    
     // Fonction pour tout enregistrer d’un coup
     void register_wifi_api_endpoints(httpd_handle_t server)
     {
