@@ -1,6 +1,6 @@
 #include "wifi_api.h"
 #include "wifi_manager.h"
-#include "wifi_persistence.h"
+#include "sta_persistence.h"
 #include "esp_log.h"
 #include <string>
 namespace wifi_api
@@ -9,7 +9,7 @@ namespace wifi_api
     static const char *TAG = "WifiAPI";
     esp_err_t wifi_sta_persisted_handler(httpd_req_t *req)
     {
-        bool status = wifi_persistence_async::is_persisted();
+        bool status = sta_persistence_async::is_persisted();
         std::string json = std::string("{\"persisted\":") + (status ? "true" : "false") + "}";
         httpd_resp_set_type(req, "application/json");
         httpd_resp_send(req, json.c_str(), json.size());
@@ -20,63 +20,40 @@ namespace wifi_api
     esp_err_t wifi_sta_get_handler(httpd_req_t *req)
     {
         const auto &nets = wifi_manager::get_sta_list();
-        std::string json = "[";
-        for (size_t i = 0; i < nets.size(); ++i)
-        {
-            json += "{\"ssid\":\"" + nets[i].ssid + "\",\"password\":\"" + nets[i].password + "\"}";
-            if (i + 1 < nets.size())
-                json += ",";
-        }
-        json += "]";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, json.c_str(), json.size());
-        return ESP_OK;
-    }
+        std::string json = sta_persistence::to_json(nets);
 
-// POST /api/wifi_sta
-#include "cJSON.h"
-    // ... reste des includes
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, json.c_str(), json.size());
+    }
 
     esp_err_t wifi_sta_post_handler(httpd_req_t *req)
     {
-        char buf[256] = {};
-        int len = httpd_req_recv(req, buf, sizeof(buf) - 1);
-        if (len <= 0)
+        // 1) Lire tout le body
+        int total = req->content_len;
+        std::string body(total, '\0');
+        int received = httpd_req_recv(req, &body[0], total);
+        if (received <= 0)
         {
             httpd_resp_send_500(req);
             return ESP_FAIL;
         }
 
-        cJSON *root = cJSON_Parse(buf);
-        if (!root)
+        // 2) Parser en liste
+        std::vector<StaNetwork> new_nets;
+        if (!sta_persistence::from_json(body.c_str(), new_nets))
         {
             httpd_resp_send_500(req);
             return ESP_FAIL;
         }
 
-        cJSON *j_ssid = cJSON_GetObjectItem(root, "ssid");
-        cJSON *j_pwd = cJSON_GetObjectItem(root, "password");
-        if (!cJSON_IsString(j_ssid) || !cJSON_IsString(j_pwd) ||
-            strlen(j_ssid->valuestring) == 0 || strlen(j_ssid->valuestring) > 32)
+        // 3) Appliquer au manager + persister
+        wifi_manager::clear_sta_networks();
+        for (auto &net : new_nets)
         {
-            cJSON_Delete(root);
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
+            wifi_manager::add_sta_network(net.ssid, net.password);
         }
+        sta_persistence_async::request_save(wifi_manager::get_sta_list());
 
-        std::string ssid = j_ssid->valuestring;
-        std::string pass = j_pwd->valuestring ? j_pwd->valuestring : "";
-
-        cJSON_Delete(root);
-
-        // Anti-doublon + validité côté manager :
-        if (!wifi_manager::add_sta_network(ssid, pass))
-        {
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
-        }
-
-        wifi_persistence_async::request_save(wifi_manager::get_sta_list());
         httpd_resp_sendstr(req, "OK");
         return ESP_OK;
     }
@@ -90,7 +67,7 @@ namespace wifi_api
         if (httpd_query_key_value(query, "ssid", ssid_param, sizeof(ssid_param)) == ESP_OK)
         {
             wifi_manager::remove_sta_network(ssid_param);
-            wifi_persistence_async::request_save(wifi_manager::get_sta_list());
+            sta_persistence_async::request_save(wifi_manager::get_sta_list());
             httpd_resp_sendstr(req, "OK");
             return ESP_OK;
         }

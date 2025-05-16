@@ -4,6 +4,8 @@
 #include "nvs_flash.h"
 #include "sd_card.h"
 #include "wifi_manager.h"
+#include "sta_persistence.h"
+#include "sta_persistence_async.h"
 #include "esp_log.h"
 #include "macro.h"
 
@@ -26,13 +28,12 @@ extern "C" void app_main()
     EventBits_t bits = xEventGroupWaitBits(eg, 0x01, pdFALSE, pdTRUE, portMAX_DELAY);
     ESP_LOGI("MAIN", "Boot OK, bits=%ld", bits);
 
-    wifi_manager::add_sta_network("HaloMesh", "HaloMesh"); // Ajoute un réseau STA();
 
     sd_card::start_async_init();
     while (sd_card::g_sd_status == ESP_FAIL)
     {
         // Attend (ou tu peux yield, logger, etc.)
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     if (sd_card::g_sd_status == ESP_OK)
@@ -41,9 +42,9 @@ extern "C" void app_main()
         vTaskDelay(pdMS_TO_TICKS(50));
 
         std::vector<StaNetwork> nets;
-        wifi_persistence_async::start_persist_task();
+        sta_persistence_async::start_persist_task();
 
-        if (wifi_persistence::load(nets))
+        if (sta_persistence::load(nets))
         {
             wifi_manager::clear_sta_networks();
             for (const auto &net : nets)
@@ -53,7 +54,7 @@ extern "C" void app_main()
         else
         {
             ESP_LOGW("MAIN", "Pas de config wifi SD, fallback réseaux par défaut");
-            // Tu peux ici mettre tes add_sta_network("HaloMesh", "HaloMesh") etc. si tu veux un fallback.
+            wifi_manager::add_sta_network(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWD);              
         }
     }
     else
