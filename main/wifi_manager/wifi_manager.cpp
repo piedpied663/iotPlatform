@@ -19,12 +19,15 @@ namespace wifi_manager
     static char s_ap_ip[16] = {0};
     static char s_sta_ip[16] = {0};
 
-    static std::vector<StaNetwork> g_sta_networks;
+    static std::vector<net_credential_t> g_sta_networks;
     static size_t g_current_sta_index = 0;
     static bool g_all_sta_failed = false;
     static const int MAX_RETRY_PER_NETWORK = 3;
     static int g_current_retry = 0;
-
+    inline net_ap_config_t default_config = net_ap_config_t(
+        {.ssid = CONFIG_IOT_AP_SSID,
+         .password = CONFIG_IOT_AP_PSWD},
+        1);
     void wifi_reconnect_async(void *)
     {
         while (true)
@@ -67,11 +70,11 @@ namespace wifi_manager
             }
         }
     }
-    const std::vector<StaNetwork> &get_sta_list()
+    const std::vector<net_credential_t> &get_sta_list()
     {
         return g_sta_networks;
     }
-    std::vector<StaNetwork> &get_sta_list_mutable()
+    std::vector<net_credential_t> &get_sta_list_mutable()
     {
         return g_sta_networks;
     }
@@ -105,7 +108,7 @@ namespace wifi_manager
             return;
         }
 
-        const StaNetwork &net = g_sta_networks[g_current_sta_index];
+        const net_credential_t &net = g_sta_networks[g_current_sta_index];
         if (net.ssid.empty() || net.ssid.length() > MAX_SSID_LEN)
         {
             ESP_LOGE(TAG, "Invalid SSID: %s", net.ssid.c_str());
@@ -183,7 +186,7 @@ namespace wifi_manager
             s_sta_netif = nullptr;
         }
     }
-    void start_apsta_async(StatusCallback cb)
+    void start_apsta_async(StatusCallback cb, net_ap_config_t ap_cfg)
     {
         cleanup_netifs();
         g_callback = cb;
@@ -207,12 +210,12 @@ namespace wifi_manager
 
         // -- AP config --
         wifi_config_t ap_config = {};
-        strncpy((char *)ap_config.ap.ssid, "IotCamera", sizeof(ap_config.ap.ssid));
-        strncpy((char *)ap_config.ap.password, "IotCamera", sizeof(ap_config.ap.password));
-        ap_config.ap.ssid_len = strlen("IotCamera");
+        strncpy((char *)ap_config.ap.ssid, ap_cfg.ap_creds.ssid.c_str(), sizeof(ap_config.ap.ssid));
+        strncpy((char *)ap_config.ap.password, ap_cfg.ap_creds.password.c_str(), sizeof(ap_config.ap.password));
+        ap_config.ap.ssid_len = ap_cfg.ap_creds.ssid.length();
         ap_config.ap.max_connection = 4;
         ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
-        ap_config.ap.channel = 1;
+        ap_config.ap.channel = ap_cfg.ap_channel;
 
         esp_wifi_set_mode(WIFI_MODE_APSTA);
         esp_wifi_set_config(WIFI_IF_AP, &ap_config);

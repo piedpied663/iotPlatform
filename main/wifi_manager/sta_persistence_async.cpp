@@ -1,58 +1,29 @@
 #include "sta_persistence_async.h"
 #include "sta_persistence.h"
-#include "esp_log.h"
-#include "freertos/queue.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_log.h"
+namespace sta_persistence_async {
+static const char* TAG = "WifiPersistAsync";
 
-namespace sta_persistence_async
-{
+struct SaveParams {
+    std::vector<net_credential_t> nets;
+    std::string            path;
+};
 
-    static QueueHandle_t persist_queue = nullptr;
-    static bool dirty = false;
-    static bool persisted = true;
-    static constexpr const char *TAG = "WifiPersistAsync";
-    static void persist_task(void *)
-    {
-        std::vector<StaNetwork> nets;
-        while (1)
-        {
-            // Attend une demande de sauvegarde (pointeur sur la liste en RAM)
-            if (xQueueReceive(persist_queue, &nets, portMAX_DELAY) == pdTRUE)
-            {
-                dirty = true;
-                persisted = false;
-                // Ecrit sur SD (synchrone, mais hors contexte REST !)
-                sta_persistence::save(nets);
-                dirty = false;
-                persisted = true;
-                ESP_LOGI(TAG, "Persistance SD async effectuée !");
-            }
-        }
-    }
-
-    void start_persist_task()
-    {
-        if (!persist_queue)
-            persist_queue = xQueueCreate(1, sizeof(std::vector<StaNetwork>));
-        xTaskCreate(persist_task, "persist_task", 4096, nullptr, 5, nullptr);
-    }
-
-    void request_save(const std::vector<StaNetwork> &nets)
-    {
-        request_save(nets, "/sdcard/wifi.txt");
-    }
-
-    void request_save(const std::vector<StaNetwork> &nets, const char * /*path*/)
-    {
-        if (persist_queue)
-        {
-            std::vector<StaNetwork> copy = nets; // Copie car la RAM peut changer
-            xQueueOverwrite(persist_queue, &copy);
-        }
-    }
-
-    bool is_persisted()
-    {
-        return persisted;
-    }
+void save_task(void* arg) {
+    auto* p = static_cast<SaveParams*>(arg);
+    ESP_LOGI(TAG, "Démarrage tâche de sauvegarde STA");
+    sta_persistence::save(p->nets, p->path.c_str());
+    delete p;
+    vTaskDelete(nullptr);
 }
+
+void request_save(const std::vector<net_credential_t>& nets,
+                  const char* path /* = "/sdcard/wifi.txt" */) {
+    auto* params = new SaveParams{nets, std::string(path)};
+    // stack 4096, priorité 3, tâche auto-supprimée à la fin
+    xTaskCreate(save_task, "sta_save", 4096, params, 3, nullptr);
+}
+
+}  // namespace wifi_persistence_async
