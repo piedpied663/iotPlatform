@@ -21,6 +21,17 @@ menu "IotPlatForm"
             help
                 Max number of the STA connects to AP.
         
+        
+    endmenu
+
+    menu Network
+        config IOT_HOSTNAME
+            string "IOT_HOSTNAME"
+            default "IotCamera"
+
+    endmenu
+
+    menu "Stations Wifi"
         config IOT_WIFI_SSID
             string "IOT_WIFI_SSID"
             default "HaloMesh"
@@ -29,4 +40,102 @@ menu "IotPlatForm"
             string "IOT_WIFI_PASSWD"
             default "HaloMesh"
     endmenu
+
+   menu "MQTT"
+        comment "MQtt Client"
+
+        config IOT_MQTT_BROKER_ENABLE
+            bool true
+            default y
+            help
+                Enable or disable mqtt
+
+            
+        config IOT_MQTT_BROKER_URI
+            string "IOT_MQTT_BROKER_URI"
+            default "mqtt://192.168.1.154"
+            help
+                url of broker
+            
+        
+        config IOT_MQTT_BROKER_USERNAME
+            string "IOT_MQTT_BROKER_USERNAME"
+            default ""
+            help
+                user mqtt
+
+        config IOT_MQTT_BROKER_PASSWORD
+            string "IOT_MQTT_BROKER_PASSWORD"
+            default ""
+            help
+                password mqtt
+
+        config IOT_MQTT_BROKER_CLIENT_ID
+            string "IOT_MQTT_BROKER_CLIENT_ID"
+            default "telegraf_iot"
+            help
+                the client ID into the broker
+               
+
+    endmenu
+    menu "Features"
+
+    config IOT_FEATURE_CAMERA
+        bool "Enable camera features"
+        default y
+        select IOT_FEATURE_SD  # <-- force SD si camera activée
+        select IOT_FEATURE_FLASHLED
+        
+
+    config IOT_FEATURE_SD
+        bool "Enable SD features"
+        default n
+
+    config IOT_FEATURE_FLASHLED
+        bool "Enable the led flash"
+        default n
+
+    endmenu
+
+    menu "CAMERA"
+
+    config OV2640_SUPPORT
+        bool ""
+        default y
+
+
+    endmenu
+
+    menu "Boot Async Tasks Stack Sizes"
+
+    config WIFI_ASYNC_STACK_SIZE
+        int "Stack size for WiFi connect task"
+        default 2048
+
+    config HTTPD_ASYNC_STACK_SIZE
+        int "Stack size for HTTPD start task"
+        default 3072
+
+    config MQTT_INIT_STACK_SIZE
+        int "Stack size for MQTT init task"
+        default 2048
+
+    config MQTT_PUBLISH_STACK_SIZE
+        int "Stack size for MQTT publisher task"
+        default 2048
+
+    config MQTT_SUBSCRIBE_STACK_SIZE
+        int "Stack size for MQTT subscriber task"
+        default 2048
+
+    config MQTT_AUTOCONN_STACK_SIZE
+        int "Stack size for MQTT auto-connect task"
+        default 2048
+
+    endmenu
+
+
+
+
+
 endmenu

@@ -1,0 +1,7 @@
+## IDF Component Manager Manifest File
+dependencies:
+  espressif/mdns: ^1.4.2
+  joltwallet/littlefs: ~=1.14.8
+  espressif/esp32-camera: ^2.0.0
+  espressif/led_strip: ^3.0.1
+  #johboh/nlohmann-json: ^3.11.3

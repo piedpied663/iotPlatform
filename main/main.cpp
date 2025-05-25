@@ -1,159 +1,71 @@
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "nvs_flash.h"
-#include "sd_card.h"
+#include "event_bus.h"
+#include "features.hpp"
+#include "fssys.h"
 #include "wifi_manager.h"
-#include "sta_persistence.h"
-#include "sta_persistence_async.h"
-#include "ap_persistence.h"
-#include "ap_persistence_async.h"
+#include "MqttClient.hpp"
+#include "api.h"
+#include "LedManager.h"
+
+#ifdef CONFIG_IOT_FEATURE_CAMERA
+#include "camera_controller.h"
+#include "camera.h"
+#endif
+
 #include "esp_log.h"
 #include "macro.h"
 
-EventGroupHandle_t eg;
-
-void worker_task(void *)
-{
-    ESP_LOGI("TASK", "Running worker task");
-    xEventGroupSetBits(eg, 0x01); // C'est safe ici
-    vTaskDelete(NULL);
-}
-
-extern "C" void app_main()
+static void essential_init(void)
 {
     INIT_NVS();
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ESP_LOGI("[BOOT]", "Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+}
 
-    vTaskDelay(10); // Laisse démarrer le scheduler
-    eg = xEventGroupCreate();
-    xTaskCreate(worker_task, "worker", 2048, nullptr, 5, nullptr);
-    EventBits_t bits = xEventGroupWaitBits(eg, 0x01, pdFALSE, pdTRUE, portMAX_DELAY);
-    ESP_LOGI("MAIN", "Boot OK, bits=%ld", bits);
+extern "C" void app_main(void)
+{
+    essential_init();
 
-    sd_card::start_async_init();
-    while (sd_card::g_sd_status == ESP_FAIL)
-    {
-        // Attend (ou tu peux yield, logger, etc.)
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-    net_ap_config_t ap_cfg;
-    net_credential_t ap_net;
+    Event evt = {};
+    evt.type = EventType::BOOT_CAN_START;
+    EventBus::getInstance().emit(evt);
 
-    if (sd_card::g_sd_status == ESP_OK)
-    {
-        ESP_LOGI("MAIN", "SD ready!");
-        vTaskDelay(pdMS_TO_TICKS(50));
-
-        if (ap_persistence::load(ap_cfg))
+    MqttClient::getInstance().registerMqttActuator(
+        "iot/led",
+        "iot/response",
+        [](const cJSON *root, cJSON *resp)
         {
-            ESP_LOGI("MAIN", "AP config chargée depuis SD");
-        }
-        else
-        {
-            ESP_LOGW("MAIN", "Pas de config AP SD, fallback par défaut");
-            ap_cfg.ap_creds.ssid = CONFIG_IOT_AP_SSID;
-            ap_cfg.ap_creds.password = CONFIG_IOT_AP_PSWD;
-            ap_cfg.ap_channel = CONFIG_IOT_AP_CHANNEL;
-        }
+            cJSON *get = cJSON_GetObjectItemCaseSensitive(root, "get");
+            cJSON *led = cJSON_GetObjectItemCaseSensitive(resp, "led");
 
-        std::vector<net_credential_t> nets;
-        // sta_persistence_async::start_persist_task();
-
-        if (sta_persistence::load(nets))
-        {
-            wifi_manager::clear_sta_networks();
-            for (const auto &net : nets)
-                wifi_manager::add_sta_network(net.ssid, net.password);
-            ESP_LOGI("MAIN", "Wifi config chargée depuis SD (%d réseaux)", (int)nets.size());
-        }
-        else
-        {
-            ESP_LOGW("MAIN", "Pas de config wifi SD, fallback réseaux par défaut");
-            wifi_manager::add_sta_network(CONFIG_IOT_WIFI_SSID, CONFIG_IOT_WIFI_PASSWD);
-        }
-    }
-    else
-    {
-        ESP_LOGE("MAIN", "SD init failed!");
-
-        ap_cfg.ap_creds.ssid = CONFIG_IOT_AP_SSID;
-        ap_cfg.ap_creds.password = CONFIG_IOT_AP_PSWD;
-        ap_cfg.ap_channel = CONFIG_IOT_AP_CHANNEL;
-    }
-
-    wifi_manager::start_apsta_async([](wifi_manager::Status st)
-                                    {
-        switch(st) {
-        case wifi_manager::Status::STA_CONNECTED:
-            printf("[WIFI] STA CONNECTED, IP: %s\n", wifi_manager::get_sta_ip());
-            break;
-        case wifi_manager::Status::AP_STARTED:
-            printf("[WIFI] AP UP, IP: %s\n", wifi_manager::get_ap_ip());
-            break;
-        case wifi_manager::Status::ALL_STA_FAILED:
-            printf("[WIFI] All STA failed, AP only mode\n");
-            break;
-        default: break;
-        } }, ap_cfg);
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    httpd_handle_t server = NULL;
-
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_open_sockets = 5;
-    config.max_uri_handlers = 25;
-    config.lru_purge_enable = true;
-    config.max_resp_headers = 5;
-    config.server_port = 80;
-
-    // Start the httpd server
-    if (httpd_start(&server, &config) == ESP_OK)
-    {
-        wifi_api::register_wifi_api_endpoints(server);
-
-        const httpd_uri_t get_favicon_uri = {
-            .uri = "/favicon.ico",
-            .method = HTTP_GET,
-            .handler = [](httpd_req_t *req) -> esp_err_t
-            {
-                httpd_resp_send(req, R"(<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>" type="image/svg+xml">)", HTTPD_RESP_USE_STRLEN);
-                return ESP_OK;
-            },
-            .user_ctx = NULL};
-
-        const httpd_uri_t error_uri = {
-            .uri = "/error",
-            .method = HTTP_GET,
-            .handler = [](httpd_req_t *req) -> esp_err_t
-            {
-                httpd_resp_send(req, "Error 404", HTTPD_RESP_USE_STRLEN);
-                return ESP_OK;
-            },
-            .user_ctx = NULL};
-
-        // const httpd_uri_t stream_camera_uri = {
-        //     .uri = "/camera_stream",
-        //     .method = HTTP_GET,
-        //     .handler = handle_stream,
-        //     .user_ctx = NULL};
-
-        // const httpd_uri_t capture_camera_uri = {
-        //     .uri = "/camera_capture",
-        //     .method = HTTP_GET,
-        //     .handler = [](httpd_req_t *req) -> esp_err_t
-        //     {
-        //         return camera.capture_handler(req);
-        //     },
-        //     .user_ctx = NULL};
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_register_uri_handler(server, &get_favicon_uri));
-        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_register_uri_handler(server, &error_uri));
-        ESP_LOGI("httpd", "Server started");
-    }
-    else
-    {
-        ESP_LOGE("httpd", "Server init failed");
-    }
-
-    xTaskCreate(wifi_manager::wifi_reconnect_async, "wifi_reconnect", 2048, nullptr, 2, nullptr);
+            if (get)
+            { // GET = demande d'état
+                bool isOn = LedManager::getInstance().isOn();
+                if (led)
+                    cJSON_SetIntValue(led, isOn);
+                else
+                    cJSON_AddNumberToObject(resp, "led", isOn);
+                ESP_LOGI("[LED]", "MQTT GET - LED state is %d", isOn);
+            }
+            else
+            { // SET = changement d'état
+                if (!led || !cJSON_IsNumber(led))
+                {
+                    ESP_LOGE("[LED]", "LED invalid");
+                    return;
+                }
+                int value = led->valueint;
+                if (value == 1)
+                {
+                    LedManager::getInstance().on();
+                    cJSON_SetIntValue(led, 1);
+                }
+                else
+                {
+                    LedManager::getInstance().off();
+                    cJSON_SetIntValue(led, 0);
+                }
+                ESP_LOGI("[LED]", "MQTT SET - LED changed to %d", led->valueint);
+            }
+        },
+        MqttClient::MqttActuatorFilter::SAME_IP);
 }

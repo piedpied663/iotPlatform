@@ -1,0 +1,50 @@
+[BOOT_CAN_START]
+      |
+[TASK_MOUNT_FS]
+  /            \
+[FS_READY]   [FS_ERROR]
+   |             |
++--+--+       +--+--+
+|     |       |     |
+[TASK_STA_LOAD] [TASK_AP_LOAD]
+   |      |      |      |
+[STA_LOADED][STA_DEFAULT][AP_LOADED][AP_DEFAULT]
+   |             |        |            |
+[STA_READY]   [STA_READY][AP_READY] [AP_READY]
+   |             |        |            |
+    \           /          \          /
+     +---------+            +--------+
+            |                |
+   [WAIT BOTH READY (STA/AP)]
+            |
+ [WIFI_CONFIGS_READY]
+            |
+   [TASK_WIFI_MANAGER_START]
+            |
+   +--------------------+
+   |                    |
+[WIFI_STA_CONNECT] [WIFI_AP_START]
+   |                    |
+[STA_CONNECTED]   [AP_STARTED]
+   |                    |
+    +--------+----------+
+             |
+     [NETWORK_READY]
+             |
++------------+--------------+
+|                           |
+[TASK_HTTPD_START]   [TASK_MQTT_START]
+|                      |
+[HTTPD_READY]       [MQTT_INIT]
+                        |
+                 [MQTT_REGISTER]
+                        |
+                 [MQTT_REGISTERED]
+                        |
+                 [MQTT_LISTEN_READY]
+                        |
+                 [MQTT_CLIENT_READY]
+                        |
+         +--------------+---------------+
+         |                              |
+[APPLICATION_READY]            [MQTT_RESPONSE_EVENT(S)]
