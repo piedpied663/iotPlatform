@@ -262,9 +262,9 @@ namespace camera_controller
 
         __attribute__((noinline)) bool from_json(const std::string &json);
         __attribute__((noinline)) std::string to_json();
-        static void on_event(const Event &evt)
+        static void on_event(const Event *evt)
         {
-            if (evt.type == EventType::FS_READY)
+            if (evt->type == EventType::FS_READY)
             {
                 if (!CameraController::getInstance().isInitialized())
                     CameraController::getInstance().initialize();

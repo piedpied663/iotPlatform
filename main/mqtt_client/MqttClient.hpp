@@ -26,7 +26,7 @@
 class MqttClient final
 {
 public:
-    typedef enum class MqttActuatorFilter
+    enum class MqttActuatorFilter
     {
         NONE = 0,
         SAME_IP = 0,
@@ -41,7 +41,6 @@ public:
         static MqttClient instance;
         return instance;
     }
-
     MqttClient(const MqttClient &) = delete;
     MqttClient &operator=(const MqttClient &) = delete;
 
@@ -207,7 +206,6 @@ private:
     static constexpr const char *TAG = "[MQTT]";
     inline static char self_ip[16];
     inline static char self_host[32];
-
     MqttClient()
         : client_(nullptr), publish_queue_(nullptr), is_initialized_(false), is_connected_(false) {}
 
@@ -251,8 +249,8 @@ private:
         {
             ESP_LOGI(TAG, "MQTT connected");
             instance->is_connected_ = true;
-            instance->emitEvent(EventType::MQTT_CONNECTED);
             instance->listenSubscribers();
+            utils::emitEvent(EventType::MQTT_CONNECTED);
             break;
         }
 
@@ -260,7 +258,7 @@ private:
         {
             ESP_LOGW(TAG, "MQTT disconnected");
             instance->is_connected_ = false;
-            instance->emitEvent(EventType::MQTT_DISCONNECTED);
+            utils::emitEvent(EventType::MQTT_DISCONNECTED);
             break;
         }
 
@@ -273,7 +271,6 @@ private:
             // Emit as EventBus event (universel)
             Event evt = {};
             evt.type = EventType::MQTT_MESSAGE;
-            strncpy(evt.source, TAG, sizeof(evt.source) - 1);
 
             // Embeds as JSON in data
             snprintf((char *)evt.data, sizeof(evt.data),
@@ -298,7 +295,7 @@ private:
         case MQTT_EVENT_ERROR:
         {
             ESP_LOGE(TAG, "MQTT error");
-            instance->emitEvent(EventType::MQTT_ERROR);
+            utils::emitEvent(EventType::MQTT_ERROR);
             break;
         }
 
@@ -365,13 +362,13 @@ private:
         }
     }
 
-    // Emission d'événements via EventBus
-    void emitEvent(EventType type)
-    {
-        Event e{};
-        e.type = type;
-        EventBus::getInstance().emit(e);
-    }
+    // // Emission d'événements via EventBus
+    // void emitEvent(EventType type)
+    // {
+    //     Event e{};
+    //     e.type = type;
+    //     EventBus::getInstance().emit(e);
+    // }
 
     static bool load()
     {
@@ -397,7 +394,7 @@ private:
         cJSON_AddStringToObject(root, password_key, mqtt_config.password);
         cJSON_AddStringToObject(root, client_id_key, mqtt_config.client_id);
         cJSON_AddBoolToObject(root, enabled_key, mqtt_config.enabled);
-        char *json_string = cJSON_PrintUnformatted(root);
+        char *json_string = cJSON_Print(root);
         cJSON_Delete(root);
 
         if (!json_string)
@@ -550,9 +547,9 @@ private:
 
     inline static bool flag_iot_hosts_registred = false;
 
-    static void on_event(const Event evt)
+    static void on_event(const Event *evt)
     {
-        if (evt.type == EventType::FS_READY)
+        if (evt->type == EventType::FS_READY)
         {
             if (!load())
             {
@@ -563,29 +560,40 @@ private:
                 ESP_LOGI(TAG, "MQTT config loaded");
             }
         }
-        else if (evt.type == EventType::WIFI_STA_CONNECTED)
+        else if (evt->type == EventType::WIFI_STA_CONNECTED)
         {
+            if (evt->data_len >= sizeof(iot_mqtt_status_t))
+            {
+                const iot_mqtt_status_t *status = reinterpret_cast<const iot_mqtt_status_t *>(evt->data);
+                strncpy(self_ip, status->ip, sizeof(self_ip) - 1);
+                strncpy(self_host, status->host, sizeof(self_host) - 1);
+                self_ip[sizeof(self_ip) - 1] = '\0';
+                self_host[sizeof(self_host) - 1] = '\0';
+            }
             if (!MqttClient::getInstance().is_initialized_)
             {
+
                 MqttClient::getInstance().init();
 
-                cJSON *root = cJSON_Parse((const char *)evt.data);
-                if (root)
-                {
-                    cJSON *ip = cJSON_GetObjectItem(root, "ip");
-                    cJSON *host = cJSON_GetObjectItem(root, "host");
+                /// now use
+                ////struct iot_mqtt_status_t
+                // cJSON *root = cJSON_Parse((const char *)evt.data);
+                // if (root)
+                // {
+                //     cJSON *ip = cJSON_GetObjectItem(root, "ip");
+                //     cJSON *host = cJSON_GetObjectItem(root, "host");
 
-                    if (ip && cJSON_IsString(ip))
-                        strncpy(self_ip, ip->valuestring, sizeof(self_ip) - 1);
+                //     if (ip && cJSON_IsString(ip))
+                //         strncpy(self_ip, ip->valuestring, sizeof(self_ip) - 1);
 
-                    if (host && cJSON_IsString(host))
-                        strncpy(self_host, host->valuestring, sizeof(self_host) - 1);
+                //     if (host && cJSON_IsString(host))
+                //         strncpy(self_host, host->valuestring, sizeof(self_host) - 1);
 
-                    cJSON_Delete(root);
-                }
+                //     cJSON_Delete(root);
+                // }
             }
         }
-        else if (evt.type == EventType::MQTT_CONNECTED)
+        else if (evt->type == EventType::MQTT_CONNECTED)
         {
             if (!flag_iot_hosts_registred)
             {
@@ -615,27 +623,25 @@ private:
                 ESP_LOGI(TAG, "IOT hosts registered");
             }
         }
-        else if (evt.type == EventType::MQTT_CONFIG_REQUEST_JSON)
+        else if (evt->type == EventType::MQTT_CONFIG_REQUEST_JSON)
         {
-            if (evt.user_ctx)
+            if (evt->user_ctx)
             {
                 Event resp_evt = {};
                 resp_evt.type = EventType::MQTT_CONFIG_ANSWER_JSON;
                 char json[512];
                 mqtt_to_json(json, sizeof(json));
-                size_t len = strnlen(json, sizeof(json) - 1);
-                memcpy(resp_evt.data, json, len);
-                resp_evt.data_len = len;
+                BIND_DATA_EVENT_JSON(resp_evt, json);
                 // Envoie la réponse
-                xQueueSend((QueueHandle_t)evt.user_ctx, &resp_evt, 0);
+                xQueueSend((QueueHandle_t)evt->user_ctx, &resp_evt, 0);
             }
         }
-        else if (evt.type == EventType::MQTT_POST_REQUEST)
+        else if (evt->type == EventType::MQTT_POST_REQUEST)
         {
-            if (evt.user_ctx)
+            if (evt->user_ctx)
             {
                 // 1) parser le JSON (evt.data, evt.data_len)
-                const char *json = reinterpret_cast<const char *>(evt.data);
+                const char *json = reinterpret_cast<const char *>(evt->user_ctx);
                 // ex : sta_from_json(json);
 
                 // 2) appliquer la config Wi-Fi, écrire en flash…
@@ -648,19 +654,19 @@ private:
                 Event resp_evt{};
                 BIND_DATA_EVENT_JSON(resp_evt, json);
                 resp_evt.type = EventType::MQTT_POST_ANSWER;
-                xQueueSend((QueueHandle_t)evt.user_ctx, &resp_evt, 0);
+                xQueueSend((QueueHandle_t)evt->user_ctx, &resp_evt, 0);
             }
         }
-        else if (evt.type == EventType::MQTT_STATUS_REQUEST_JSON)
+        else if (evt->type == EventType::MQTT_STATUS_REQUEST_JSON)
         {
-            if (evt.user_ctx)
+            if (evt->user_ctx)
             {
                 Event resp_evt = {};
                 char json[512];
                 mqtt_status_to_json(json, sizeof(json));
                 BIND_DATA_EVENT_JSON(resp_evt, json);
                 resp_evt.type = EventType::MQTT_STATUS_ANSWER_JSON; // Envoie la réponse
-                xQueueSend((QueueHandle_t)evt.user_ctx, &resp_evt, 0);
+                xQueueSend((QueueHandle_t)evt->user_ctx, &resp_evt, 0);
             }
         }
     }

@@ -6,7 +6,7 @@
 #include <mutex>
 #include "types.h"
 
-using EventCallback = std::function<void(const Event &)>;
+using EventCallback = std::function<void(const Event *)>;
 #define STACK_SIZE 8192
 class EventBus
 {
@@ -37,4 +37,3 @@ private:
     std::mutex sub_mutex;
 
 };
-

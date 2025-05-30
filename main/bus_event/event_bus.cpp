@@ -37,9 +37,7 @@ void EventBus::emit(const Event &evt)
 {
     if (!evt_queue)
     {
-        ESP_LOGW(TAG, "EventBus not initialized");
-        EventBus::getInstance().init();
-        return EventBus::getInstance().emit(evt);
+        return ;
     }
 
     if (xQueueSend(static_cast<QueueHandle_t>(evt_queue), &evt, 0) != pdTRUE)
@@ -62,22 +60,21 @@ void EventBus::unsubscribe(const EventCallback &cb)
     // On ne peut pas comparer std::function simplement : laisser vide ou gérer l'ID callback selon besoins
     // std::remove_if, etc, à adapter selon usage réel
 }
-
 void EventBus::eventbus_task()
 {
-    Event evt;
+    static Event evt;  // reste en static pour éviter la stack
     while (true)
     {
         if (xQueueReceive(static_cast<QueueHandle_t>(evt_queue), &evt, portMAX_DELAY) == pdTRUE)
         {
             std::lock_guard<std::mutex> lock(sub_mutex);
-            for (auto &cb : subscribers)
+            for (auto& cb : subscribers)
             {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
                 try
                 {
 #endif
-                    cb(evt);
+                    cb(&evt);
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
                 }
                 catch (...)
@@ -89,7 +86,35 @@ void EventBus::eventbus_task()
         }
         vTaskDelay(1);
     }
+}
+
+// void EventBus::eventbus_task()
+// {
+//     Event evt;
+//     while (true)
+//     {
+//         if (xQueueReceive(static_cast<QueueHandle_t>(evt_queue), &evt, portMAX_DELAY) == pdTRUE)
+//         {
+//             std::lock_guard<std::mutex> lock(sub_mutex);
+//             for (auto &cb : subscribers)
+//             {
+// #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+//                 try
+//                 {
+// #endif
+//                     cb(evt);
+// #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+//                 }
+//                 catch (...)
+//                 {
+//                     ESP_LOGE(TAG, "Exception in callback!");
+//                 }
+// #endif
+//             }
+//         }
+//         vTaskDelay(1);
+//     }
 
    
-}
+// }
 

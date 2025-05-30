@@ -116,15 +116,15 @@ namespace camera
     static bool wifi_connected = false;
     static bool camera_init = false;
 
-    static void on_event(const Event &event)
+    static void on_event(const Event *event)
     {
-        if (event.type == EventType::WIFI_STA_CONNECTED)
+        if (event->type == EventType::WIFI_STA_CONNECTED)
         {
             wifi_connected = true;
-        }else if (event.type == EventType::WIFI_STA_DISCONNECTED)
+        }else if (event->type == EventType::WIFI_STA_DISCONNECTED)
         {
             wifi_connected = false;
-        }else if (event.type == EventType::CAMERA_INIT_DONE)
+        }else if (event->type == EventType::CAMERA_INIT_DONE)
         {
             camera_init = true;
         }else if(camera_init && wifi_connected && !stream_socket_server_started)

@@ -1,10 +1,15 @@
+#include "esp_mac.h"
+#include "esp_system.h"
 #include "event_bus.h"
 #include "features.hpp"
-#include "fssys.h"
-#include "wifi_manager.h"
+#include "Fs.h"
+// #include "wifi_manager.h"
 #include "MqttClient.hpp"
 #include "api.h"
 #include "LedManager.h"
+#include "WiFiConfig.h"
+#include "WiFiManager.h"
+#include "WiFiScanner.h"
 
 #ifdef CONFIG_IOT_FEATURE_CAMERA
 #include "camera_controller.h"
@@ -13,6 +18,7 @@
 
 #include "esp_log.h"
 #include "macro.h"
+#include "ota.h"
 
 static void essential_init(void)
 {
@@ -24,6 +30,7 @@ static void essential_init(void)
 extern "C" void app_main(void)
 {
     essential_init();
+    ota_manager::validate_image();
 
     Event evt = {};
     evt.type = EventType::BOOT_CAN_START;

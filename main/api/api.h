@@ -20,6 +20,9 @@ namespace api
     // esp_err_t wifi_sta_delete_handler(httpd_req_t *req);
     esp_err_t mqtt_get_handler(httpd_req_t *req);
     esp_err_t mqtt_post_handler(httpd_req_t *req);
+
+    esp_err_t fs_list_handler(httpd_req_t *req);
+
     void private_register_endpoints(httpd_handle_t server, const char *base_path,
                                     http_handler_t get_handler,
                                     http_handler_t post_handler);
@@ -30,7 +33,7 @@ namespace api
 
     void start_server_async();
 
-    void on_event(const Event &evt);
+    void on_event(const Event *evt);
 
     httpd_handle_t get_server();
     static bool subscribed = false;
